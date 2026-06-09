@@ -416,6 +416,7 @@
     <button class="btn" id="search-btn">🔍</button>
     <button class="btn" id="clear-btn">✕</button>
   </div>
+  <button class="btn btn-star" id="theme-toggle-btn" title="Alternar tema">☀️</button>
   <button class="btn btn-star" id="watchlist-toggle-btn" title="Lista de seguimento">⭐</button>
 </div>
 
@@ -2521,6 +2522,9 @@ function updateMap() {
       closePanel();
     }
   }
+  
+  // Show route for search/watch line
+  updateRouteDisplay();
 }
 
 // Smooth animation: interpolate positions every frame
@@ -2741,6 +2745,7 @@ document.getElementById('panel-watch-btn').addEventListener('click', () => {
 });
 
 // Watch list toggle
+document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
 document.getElementById('watchlist-toggle-btn').addEventListener('click', toggleWatchList);
 document.getElementById('watchlist-close').addEventListener('click', closeWatchList);
 document.getElementById('watchlist-backdrop').addEventListener('click', closeWatchList);
@@ -2749,8 +2754,99 @@ document.getElementById('watchlist-backdrop').addEventListener('click', closeWat
 document.querySelector('#info-panel .handle').addEventListener('click', closePanel);
 document.getElementById('panel-close').addEventListener('click', closePanel);
 
+// ─── ROUTE RENDERING ───
+function showRouteLine(lineName) {
+  if (!routeLayer || !stopsLayer) return;
+  routeLayer.clearLayers();
+  stopsLayer.clearLayers();
+  
+  // Draw route polyline
+  const coords = ROUTE_SHAPES[lineName];
+  if (coords && coords.length >= 2) {
+    const colors = {'728': '#7c5cfc', '731': '#ff6b6b'};
+    const color = colors[lineName] || '#7c5cfc';
+    const polyline = L.polyline(coords, {
+      color: color, weight: 4, opacity: 0.6, dashArray: '10 8'
+    });
+    polyline.bindTooltip(`🚌 ${lineName}`, { direction: 'top', offset: [0, -5] });
+    routeLayer.addLayer(polyline);
+  }
+  
+  // Show stops
+  const stops = ROUTE_STOPS[lineName];
+  if (!stops) return;
+  
+  stops.forEach(s => {
+    const stopIcon = L.divIcon({
+      className: '',
+      html: '<div style="width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid #7c5cfc;box-shadow:0 0 6px rgba(124,92,252,0.5);"></div>',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+    const marker = L.marker([s.lat, s.lon], { icon: stopIcon });
+    marker.bindTooltip(`🚏 ${s.name}`, { direction: 'top', offset: [0, -5] });
+    stopsLayer.addLayer(marker);
+  });
+}
+
+// Show route for first search/watch line on map update
+function updateRouteDisplay() {
+  if (searchLine) {
+    showRouteLine(searchLine);
+  } else if (watchMode) {
+    const list = getWatchList();
+    if (list.length > 0) showRouteLine(list[0].line);
+  } else if (routeLayer) {
+    routeLayer.clearLayers();
+    stopsLayer.clearLayers();
+  }
+}
+
+// ─── THEME ───
+function setLightTheme() {
+  document.documentElement.setAttribute('data-theme', 'light');
+  localStorage.setItem('lisboa_bus_theme', 'light');
+  if (tileLayerInstance && map) {
+    map.removeLayer(tileLayerInstance);
+    tileLayerInstance = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+  }
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = '☀️';
+}
+
+function loadTheme() {
+  const saved = localStorage.getItem('lisboa_bus_theme');
+  if (saved === 'dark') {
+    document.documentElement.removeAttribute('data-theme');
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) btn.textContent = '🌓';
+    if (tileLayerInstance && map) {
+      map.removeLayer(tileLayerInstance);
+      tileLayerInstance = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+    }
+  } else {
+    setLightTheme();
+  }
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('lisboa_bus_theme', 'dark');
+    if (tileLayerInstance && map) {
+      map.removeLayer(tileLayerInstance);
+      tileLayerInstance = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+    }
+    document.getElementById('theme-toggle-btn').textContent = '🌓';
+  } else {
+    setLightTheme();
+  }
+}
+
 // ─── START ───
 initMap();
+loadTheme();
 renderWatchList();
 
 fetchVehicles();
