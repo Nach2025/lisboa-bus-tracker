@@ -1611,14 +1611,24 @@ function filterVehicles() {
 
   if (searchLine) {
     const terms = searchLine.toLowerCase().split(/[\s,]+/).filter(t => t);
-    // Expandir términos con alias (728 ↔ 196)
+    // Expandir términos con alias (728 ↔ 204)
     const expandedTerms = [];
     terms.forEach(t => {
       expandLineSearch(t).forEach(et => expandedTerms.push(et.toLowerCase()));
     });
+    // Filtro exacto: buscamos coincidencia en line_id original de la API
+    // o coincidencia exacta del nombre comercial
     filtered = filtered.filter(v => {
-      const ln = formatLineName(v).toLowerCase();
-      return expandedTerms.some(t => ln.includes(t));
+      const lineName = formatLineName(v).toLowerCase();
+      // Coincidencia exacta con el nombre comercial
+      if (terms.some(t => lineName === t.toLowerCase())) return true;
+      // Coincidencia exacta con códigos internos (para compatibilidad)
+      const rawLine = (v.line_id || '').toLowerCase();
+      return expandedTerms.some(t => {
+        // Extraer código numérico puro del line_id (ej: "[1]204" → "204")
+        const rawCode = rawLine.replace(/^\[\d+\]/, '');
+        return rawCode === t;
+      });
     });
   }
 
