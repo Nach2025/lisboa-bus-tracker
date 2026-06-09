@@ -1,0 +1,2092 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🚌 Lisboa Bus Tracker - Tempo Real</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --accent: #7c5cfc;
+    --teal: #00f5e0;
+    --gold: #ffe066;
+    --red: #f85149;
+    --green: #3fb950;
+    --map-bg: #1a1a2e;
+    --map-tiles: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    --popup-bg: var(--surface);
+  }
+  /* Light mode */
+  [data-theme="light"] {
+    --bg: #ffffff;
+    --surface: #f3f4f6;
+    --surface2: #e5e7eb;
+    --border: #d1d5db;
+    --text: #111827;
+    --text2: #6b7280;
+    --accent: #7c5cfc;
+    --teal: #0d9488;
+    --gold: #ca8a04;
+    --red: #dc2626;
+    --green: #16a34a;
+    --map-bg: #f0f0f0;
+    --map-tiles: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    --popup-bg: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  #header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    z-index: 1000;
+  }
+  #header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--teal));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    white-space: nowrap;
+  }
+  #header .badge {
+    font-size: 11px;
+    background: var(--surface2);
+    color: var(--text2);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  #search-row {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    min-width: 180px;
+  }
+  #search-row input {
+    flex: 1;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    min-width: 60px;
+  }
+  #search-row input:focus {
+    border-color: var(--accent);
+  }
+  #search-row input::placeholder {
+    color: var(--text2);
+  }
+  .btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .btn-star {
+    background: transparent;
+    border-color: var(--border);
+    font-size: 18px;
+    padding: 4px 10px;
+    line-height: 1;
+  }
+  .btn-star.active {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #000;
+  }
+  #filter-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 8px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    z-index: 1000;
+  }
+  #filter-row label {
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .agency-btn {
+    padding: 3px 10px;
+    font-size: 11px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .agency-btn:hover { border-color: var(--accent); color: var(--text); }
+  .agency-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .watch-mode-btn {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .watch-mode-btn.active {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #000;
+  }
+  #map {
+    flex: 1;
+    width: 100%;
+    z-index: 1;
+  }
+  #status-bar {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--text2);
+    display: flex;
+    justify-content: space-between;
+    z-index: 1000;
+  }
+  #status-bar span { display: flex; align-items: center; gap: 4px; }
+  .live-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .leaflet-container { background: var(--map-bg) !important; }
+  .leaflet-control-zoom a {
+    background: var(--surface2) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+  }
+  .leaflet-popup-content-wrapper {
+    background: var(--popup-bg) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--border);
+    border-radius: 10px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+  }
+  .leaflet-popup-tip { background: var(--popup-bg) !important; }
+  .leaflet-popup-close-button { color: var(--text2) !important; }
+  .bus-marker {
+    background: var(--accent);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    width: 32px !important;
+    height: 32px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(124,92,252,0.5);
+    transition: all 0.3s ease;
+  }
+  .bus-marker.stopped { background: var(--red); }
+  .bus-marker.moving { background: var(--accent); }
+  .bus-marker.fast { background: var(--teal); color: #000; }
+  .bus-marker.highlight {
+    border-color: var(--gold);
+    box-shadow: 0 0 16px rgba(255,224,102,0.6);
+    transform: scale(1.2);
+  }
+  .bus-marker.watched {
+    border-color: var(--gold) !important;
+    border-width: 3px;
+    box-shadow: 0 0 12px rgba(255,224,102,0.4);
+  }
+  .leaflet-marker-icon { border: none !important; }
+  #info-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 45vh;
+    background: var(--surface);
+    border-top: 2px solid var(--accent);
+    border-radius: 16px 16px 0 0;
+    padding: 16px;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+    z-index: 2000;
+    overflow-y: auto;
+    box-shadow: 0 -8px 30px rgba(0,0,0,0.5);
+  }
+  #info-panel.open { transform: translateY(0); }
+  #info-panel .handle {
+    width: 40px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 12px;
+    cursor: pointer;
+  }
+  #info-panel h2 {
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: var(--gold);
+  }
+  #info-panel .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  #info-panel .detail-row .label { color: var(--text2); }
+  #info-panel .detail-row .value { font-weight: 600; }
+  #info-panel .close-btn {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: none;
+    border: none;
+    color: var(--text2);
+    font-size: 20px;
+    cursor: pointer;
+  }
+  .watch-btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--gold);
+    background: transparent;
+    color: var(--gold);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+    width: 100%;
+    text-align: center;
+  }
+  .watch-btn.active {
+    background: var(--gold);
+    color: #000;
+  }
+  /* Watch list panel */
+  #watchlist-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 280px;
+    max-width: 85vw;
+    height: 100dvh;
+    background: var(--surface);
+    border-left: 2px solid var(--gold);
+    z-index: 3000;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.5);
+  }
+  #watchlist-panel.open { transform: translateX(0); }
+  #watchlist-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  #watchlist-header h2 {
+    font-size: 16px;
+    color: var(--gold);
+  }
+  #watchlist-header .close-btn {
+    background: none;
+    border: none;
+    color: var(--text2);
+    font-size: 22px;
+    cursor: pointer;
+  }
+  #watchlist-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .watchlist-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .watchlist-item:hover { background: var(--surface2); }
+  .watchlist-item .line-name {
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .watchlist-item .line-agency {
+    font-size: 11px;
+    color: var(--text2);
+  }
+  .watchlist-item .remove-btn {
+    background: none;
+    border: none;
+    color: var(--red);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+  }
+  .watchlist-item .remove-btn:hover { opacity: 1; }
+  #watchlist-empty {
+    padding: 30px 16px;
+    text-align: center;
+    color: var(--text2);
+    font-size: 14px;
+  }
+  #watchlist-footer {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text2);
+    display: flex;
+    justify-content: space-between;
+  }
+  .stop-icon {
+    width: 10px !important;
+    height: 10px !important;
+    border-radius: 50%;
+    background: var(--teal);
+    opacity: 0.5;
+    border: 1px solid var(--teal);
+  }
+  /* Stop markers for learned stops */
+  .stop-marker-learned {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 1px solid rgba(255,224,102,0.5);
+    opacity: 0.7;
+  }
+  /* User location marker */
+  .user-location-marker {
+    width: 20px !important;
+    height: 20px !important;
+    background: #4285f4;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 20px rgba(66,133,244,0.6);
+  }
+  .user-location-pulse {
+    width: 40px !important;
+    height: 40px !important;
+    background: rgba(66,133,244,0.2);
+    border-radius: 50%;
+    position: absolute;
+    animation: pulse-loc 2s infinite;
+  }
+  @keyframes pulse-loc {
+    0% { transform: scale(0.8); opacity: 0.6; }
+    50% { transform: scale(1.2); opacity: 0.2; }
+    100% { transform: scale(0.8); opacity: 0.6; }
+  }
+  /* GPS button */
+  .gps-btn {
+    position: absolute;
+    bottom: 120px;
+    right: 12px;
+    z-index: 1001;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: all 0.15s;
+  }
+  .gps-btn:hover { background: var(--accent); border-color: var(--accent); }
+  .gps-btn.active { background: #4285f4; border-color: #4285f4; }
+  /* Route line style */
+  .route-line {
+    stroke-dasharray: 8 6;
+    animation: dash-flow 1s linear infinite;
+  }
+  @keyframes dash-flow {
+    to { stroke-dashoffset: -14; }
+  }
+  .leaflet-control-attribution { display: none !important; }
+  .overlay-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 2500;
+    display: none;
+  }
+  .overlay-backdrop.show { display: block; }
+  /* Watchlist editor styles */
+  #watchlist-editor { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .editor-search { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .editor-search input {
+    width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); font-size: 14px; outline: none;
+  }
+  .editor-search input:focus { border-color: var(--accent); }
+  .editor-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .editor-line-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+    transition: background 0.1s;
+  }
+  .editor-line-item:hover { background: var(--surface2); }
+  .editor-line-item .line-info { display: flex; align-items: center; gap: 10px; }
+  .editor-line-item .line-check {
+    width: 22px; height: 22px; border-radius: 4px; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all 0.15s;
+  }
+  .editor-line-item .line-check.checked {
+    background: var(--gold); border-color: var(--gold); color: #000;
+  }
+  .editor-line-item .line-number { font-weight: 600; font-size: 15px; }
+  .editor-line-item .line-agency { font-size: 11px; color: var(--text2); }
+  .header-actions { display: flex; align-items: center; gap: 6px; }
+  .header-btn {
+    background: none; border: none; color: var(--text2); font-size: 18px;
+    cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.1s;
+  }
+  .header-btn:hover { background: var(--surface2); color: var(--text); }
+  @media (max-width: 600px) {
+    #header { padding: 8px 10px; }
+    #header h1 { font-size: 15px; }
+    .btn { font-size: 12px; padding: 5px 10px; }
+    #filter-row { padding: 6px 10px; }
+    .agency-btn { font-size: 10px; padding: 2px 8px; }
+    #watchlist-panel { width: 100%; max-width: 100vw; }
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🚌 Lisboa Bus Tracker</h1>
+  <span class="badge" id="vehicle-count">—</span>
+  <div id="search-row">
+    <input type="text" id="line-search" placeholder="Línea (ej: 732, 201, 28E)" />
+    <button class="btn" id="search-btn">🔍</button>
+    <button class="btn" id="clear-btn">✕</button>
+  </div>
+  <button class="btn btn-star" id="watchlist-toggle-btn" title="Lista de seguimento">⭐</button>
+  <button class="btn" id="theme-toggle-btn" title="Mudar tema">🌓</button>
+</div>
+
+<div id="filter-row">
+  <label>Operadora:</label>
+  <button class="agency-btn active" data-agency="all">Todas</button>
+  <button class="agency-btn" data-agency="1">Carris (Lisboa)</button>
+  <button class="agency-btn" data-agency="41">CMetropolitana</button>
+  <button class="agency-btn" data-agency="42">42</button>
+  <button class="agency-btn" data-agency="43">43</button>
+  <button class="agency-btn" data-agency="44">44</button>
+  <button class="agency-btn" data-agency="15">15</button>
+  <button class="agency-btn" data-agency="21">21</button>
+  <span style="flex:1"></span>
+  <button class="watch-mode-btn" id="watch-mode-btn">⭐ Solo seguidas</button>
+</div>
+
+<div id="map"></div>
+
+<button class="gps-btn" id="gps-btn" title="📍 Minha localização">📍</button>
+
+<div id="status-bar">
+  <span><span class="live-dot"></span> Tempo real</span>
+  <span id="status-text">A carregar...</span>
+  <span>🔍 clique num bus para detalhes</span>
+</div>
+
+<div id="info-panel">
+  <div class="handle"></div>
+  <button class="close-btn" id="panel-close">✕</button>
+  <h2 id="panel-title">🚌 Bus</h2>
+  <div id="panel-details"></div>
+  <button class="watch-btn" id="panel-watch-btn">⭐ Seguir linha</button>
+  <button class="watch-btn" id="panel-track-btn" style="margin-top:6px;border-color:var(--teal);color:var(--teal);">🎯 Seguir este bus</button>
+  <button class="watch-btn" id="panel-solo-btn" style="margin-top:6px;border-color:var(--accent);color:var(--accent);">🔍 Mostrar só este</button>
+</div>
+
+<div class="overlay-backdrop" id="watchlist-backdrop"></div>
+<div id="watchlist-panel">
+  <div id="watchlist-header">
+    <h2>⭐ Lista de seguimento</h2>
+    <div class="header-actions">
+      <button class="header-btn" id="watchlist-edit-btn" title="Editar">✏️</button>
+      <button class="close-btn" id="watchlist-close">✕</button>
+    </div>
+  </div>
+  <div id="watchlist-body">
+    <div id="watchlist-empty">Nenhuma linha seguida ainda.<br>Clique num bus e use ⭐ Seguir linha</div>
+  </div>
+  <div id="watchlist-editor" style="display:none;">
+    <div class="editor-search">
+      <input type="text" id="editor-search-input" placeholder="Buscar linha (ex: 728, 2733, ...)" />
+    </div>
+    <div class="editor-list" id="editor-list">
+      <!-- Available lines will be rendered here -->
+    </div>
+  </div>
+  <div id="watchlist-footer">
+    <span id="watchlist-count">0 linhas</span>
+    <button class="watch-mode-btn" id="watchlist-mode-btn">🔍 Mostrar no mapa</button>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───
+const REFRESH_MS = 3000;
+const CARRS_CENTER = [38.7223, -9.1393];
+const CARRS_ZOOM = 13;
+const STORAGE_KEY = 'lisboa_bus_watchlist';
+const ANIM_DURATION = 2500;
+
+// Mapa de líneas comerciales ↔ códigos internos de la API
+// Carris usa numeración interna distinta a los números de ruta
+const LINE_ALIASES = {
+  '728': ['204'],    // 728 comercial = L204 en API (Restelo - Portela) ← TU BUS
+  '204': ['728'],    // bidireccional
+  '731': ['190'],    // 731 = L190 (Av. José Malhoa - Sacavém)
+  '190': ['731'],    // bidireccional
+};
+
+// Función para expandir una búsqueda con alias
+function expandLineSearch(term) {
+  const results = new Set();
+  results.add(term);
+  const aliases = LINE_ALIASES[term];
+  if (aliases) {
+    aliases.forEach(a => results.add(a));
+  }
+  // También buscar inversamente: si hay algún alias que apunte a este término
+  for (const [key, vals] of Object.entries(LINE_ALIASES)) {
+    if (vals.includes(term)) {
+      results.add(key);
+    }
+  }
+  return Array.from(results);
+}
+
+// Preconfigurar líneas de Portela en la watchlist
+const DEFAULT_WATCH_LINES = [
+  {line:'728', agency:'1'}, {line:'731', agency:'1'},
+];
+
+// Líneas disponibles para añadir desde el editor
+const AVAILABLE_LINES = [
+  // Carris Metropolitana (agência 42) - tus líneas de Portela
+  {line:'2713', agency:'42'}, {line:'2722', agency:'42'},
+  {line:'2735', agency:'42'}, {line:'2733', agency:'42'},
+  {line:'2734', agency:'42'}, {line:'2731', agency:'42'},
+  {line:'2720', agency:'42'}, {line:'2725', agency:'42'},
+  {line:'2727', agency:'42'}, {line:'2728', agency:'42'},
+  {line:'2729', agency:'42'}, {line:'2730', agency:'42'},
+  {line:'2736', agency:'42'}, {line:'2740', agency:'42'},
+  {line:'2742', agency:'42'}, {line:'2750', agency:'42'},
+  {line:'2754', agency:'42'}, {line:'2756', agency:'42'},
+  {line:'2759', agency:'42'}, {line:'2761', agency:'42'},
+  {line:'2762', agency:'42'}, {line:'2765', agency:'42'},
+  {line:'2769', agency:'42'}, {line:'2776', agency:'42'},
+  {line:'2780', agency:'42'}, {line:'2781', agency:'42'},
+  {line:'2785', agency:'42'}, {line:'2790', agency:'42'},
+  {line:'2794', agency:'42'}, {line:'2795', agency:'42'},
+  {line:'2797', agency:'42'},
+  // Carris (agência 1) - líneas urbanas de Lisboa
+  {line:'728', agency:'1'}, {line:'731', agency:'1'},
+  {line:'722', agency:'1'}, {line:'2029', agency:'1'},
+  {line:'705', agency:'1'}, {line:'708', agency:'1'},
+  {line:'714', agency:'1'}, {line:'727', agency:'1'},
+  {line:'737', agency:'1'}, {line:'744', agency:'1'},
+  {line:'750', agency:'1'}, {line:'751', agency:'1'},
+  {line:'759', agency:'1'}, {line:'782', agency:'1'},
+  {line:'783', agency:'1'}, {line:'794', agency:'1'},
+  {line:'706', agency:'1'}, {line:'712', agency:'1'},
+  {line:'713', agency:'1'}, {line:'716', agency:'1'},
+  {line:'717', agency:'1'}, {line:'720', agency:'1'},
+  {line:'723', agency:'1'}, {line:'724', agency:'1'},
+  {line:'725', agency:'1'}, {line:'726', agency:'1'},
+  {line:'730', agency:'1'}, {line:'732', agency:'1'},
+  {line:'733', agency:'1'}, {line:'734', agency:'1'},
+  {line:'735', agency:'1'}, {line:'736', agency:'1'},
+  {line:'738', agency:'1'}, {line:'742', agency:'1'},
+  {line:'745', agency:'1'}, {line:'746', agency:'1'},
+  {line:'747', agency:'1'}, {line:'748', agency:'1'},
+  {line:'749', agency:'1'}, {line:'753', agency:'1'},
+  {line:'754', agency:'1'}, {line:'755', agency:'1'},
+  {line:'756', agency:'1'}, {line:'758', agency:'1'},
+  {line:'760', agency:'1'}, {line:'761', agency:'1'},
+  {line:'762', agency:'1'}, {line:'763', agency:'1'},
+  {line:'764', agency:'1'}, {line:'765', agency:'1'},
+  {line:'766', agency:'1'}, {line:'767', agency:'1'},
+  {line:'768', agency:'1'}, {line:'770', agency:'1'},
+  {line:'771', agency:'1'}, {line:'772', agency:'1'},
+  {line:'773', agency:'1'}, {line:'774', agency:'1'},
+  {line:'775', agency:'1'}, {line:'776', agency:'1'},
+  {line:'777', agency:'1'}, {line:'778', agency:'1'},
+  {line:'779', agency:'1'}, {line:'780', agency:'1'},
+  {line:'781', agency:'1'}, {line:'790', agency:'1'},
+  {line:'791', agency:'1'}, {line:'792', agency:'1'},
+  {line:'793', agency:'1'}, {line:'796', agency:'1'},
+  {line:'797', agency:'1'}, {line:'798', agency:'1'},
+  {line:'799', agency:'1'},
+  // Códigos internos de Carris que corresponden a líneas comerciales
+  {line:'204', agency:'1'},  // = 728 (Restelo - Portela) ← TU BUS
+  {line:'190', agency:'1'},  // = 731 (Av. José Malhoa - Sacavém)
+];
+
+const AGENCY_NAMES = {
+  '1': 'Carris (Lisboa)',
+  '4': 'Metro Lisboa',
+  '15': 'Fertagus',
+  '21': 'Transtejo/Soflusa',
+  '41': 'Carris Metropolitana',
+  '42': 'Carris Metropolitana',
+  '43': 'Carris Metropolitana',
+  '44': 'Carris Metropolitana'
+};
+
+const AGENCY_COLORS = {
+  '1': '#7c5cfc',
+  '4': '#ff6b6b',
+  '15': '#00f5e0',
+  '21': '#ffe066',
+  '41': '#51cf66',
+  '42': '#339af0',
+  '43': '#f06595',
+  '44': '#cc9'
+};
+
+// ─── STATE ───
+let map, vehiclesLayer, stopsLayer, routeLayer, userMarker;
+let vehiclesData = [];
+let allMarkers = {};
+let activeAgency = 'all';
+let searchLine = '';
+let selectedVehicleId = null;
+let selectedVehicleData = null;
+let trackingVehicleId = null;
+let showOnlySelected = false;
+let isFirstLoad = true;
+let watchMode = false;
+let animationFrameId = null;
+let lastAnimTime = 0;
+let userLocation = null;
+let gpsActive = false;
+let gpsWatchId = null;
+
+// Paradas aprendidas por línea (se cargan desde el script)
+// ─── ROUTE DATA (from GTFS Carris) ───
+// Route shapes (polylines) - simplified every 3rd point
+const ROUTE_SHAPES = {
+  '728': [
+    [38.7819423, -9.1139283],
+    [38.7812698, -9.1138725],
+    [38.7810507, -9.1126054],
+    [38.7810872, -9.1118312],
+    [38.7810859, -9.1112124],
+    [38.7810605, -9.1110191],
+    [38.781135, -9.1108369],
+    [38.7812204, -9.1091257],
+    [38.7812945, -9.1074577],
+    [38.7807442, -9.1065303],
+    [38.7802428, -9.105966],
+    [38.7792921, -9.1059199],
+    [38.7793279, -9.1048922],
+    [38.7801436, -9.1047896],
+    [38.7796345, -9.10443],
+    [38.7776857, -9.1034338],
+    [38.7766447, -9.1028033],
+    [38.7753537, -9.1020215],
+    [38.7751033, -9.1019956],
+    [38.7750363, -9.1027396],
+    [38.7748116, -9.1048482],
+    [38.7747977, -9.1054475],
+    [38.7744909, -9.1058152],
+    [38.7738435, -9.1057856],
+    [38.7731488, -9.1054891],
+    [38.7730699, -9.1050244],
+    [38.7712504, -9.1047519],
+    [38.7688011, -9.1046383],
+    [38.7685654, -9.101619],
+    [38.7685399, -9.0986096],
+    [38.7677582, -9.0979923],
+    [38.7668938, -9.0981938],
+    [38.7659934, -9.0981298],
+    [38.7645179, -9.0982568],
+    [38.7624302, -9.0984102],
+    [38.7620307, -9.0983925],
+    [38.7616706, -9.0986258],
+    [38.7615014, -9.0982815],
+    [38.7616259, -9.0974344],
+    [38.7613397, -9.0963516],
+    [38.7606355, -9.0963837],
+    [38.7593153, -9.0966031],
+    [38.7583713, -9.09662],
+    [38.7577281, -9.0965174],
+    [38.7558623, -9.0966862],
+    [38.755304, -9.0968195],
+    [38.7544806, -9.0969486],
+    [38.7540564, -9.0972239],
+    [38.7538475, -9.0968377],
+    [38.7535382, -9.0960838],
+    [38.7531154, -9.0957804],
+    [38.7520804, -9.0958226],
+    [38.7503036, -9.0963067],
+    [38.748122, -9.0969051],
+    [38.7473262, -9.0971233],
+    [38.7469593, -9.099715],
+    [38.7454662, -9.1006981],
+    [38.7442575, -9.1012479],
+    [38.7424647, -9.1023812],
+    [38.7411215, -9.1026118],
+    [38.7391773, -9.1030716],
+    [38.7374082, -9.1031753],
+    [38.7352688, -9.1038815],
+    [38.7325631, -9.1047314],
+    [38.7297564, -9.1065986],
+    [38.7282996, -9.1079989],
+    [38.726388, -9.1103666],
+    [38.7249003, -9.1116778],
+    [38.7229538, -9.1133539],
+    [38.7197007, -9.1161544],
+    [38.7183059, -9.117453],
+    [38.7167923, -9.1191409],
+    [38.7142808, -9.1218433],
+    [38.7134767, -9.1227265],
+    [38.7123093, -9.1242273],
+    [38.710983, -9.126826],
+    [38.7105461, -9.1275869],
+    [38.7096084, -9.1288801],
+    [38.7092576, -9.1294554],
+    [38.7081534, -9.131832],
+    [38.7076637, -9.1329398],
+    [38.7084142, -9.133408],
+    [38.7087357, -9.1335658],
+    [38.7087084, -9.1352542],
+    [38.7085647, -9.1357928],
+    [38.7084839, -9.1360506],
+    [38.7080962, -9.137644],
+    [38.7078985, -9.1385731],
+    [38.70774, -9.1393296],
+    [38.7075817, -9.1399559],
+    [38.7072304, -9.1413175],
+    [38.7071713, -9.141546],
+    [38.7070709, -9.1416626],
+    [38.7069181, -9.1416416],
+    [38.7067412, -9.1415924],
+    [38.7066002, -9.1418574],
+    [38.7062379, -9.1432093],
+    [38.706194, -9.1435806],
+    [38.7062799, -9.1448047],
+    [38.7062896, -9.1453952],
+    [38.7063397, -9.1481632],
+    [38.7063717, -9.1499233],
+    [38.7064458, -9.1544116],
+    [38.7062472, -9.1557712],
+    [38.7061151, -9.1561188],
+    [38.7046357, -9.1592651],
+    [38.7037412, -9.1623417],
+    [38.7035908, -9.1630948],
+    [38.7034972, -9.1670586],
+    [38.7034903, -9.1701953],
+    [38.7034823, -9.1711355],
+    [38.7033627, -9.1719985],
+    [38.7027564, -9.174051],
+    [38.7026282, -9.1751273],
+    [38.701371, -9.1763627],
+    [38.6997606, -9.1796071],
+    [38.6985106, -9.1830008],
+    [38.6978397, -9.1858511],
+    [38.6975939, -9.1875447],
+    [38.6973132, -9.1891288],
+    [38.696637, -9.1935088],
+    [38.6963376, -9.1978004],
+    [38.6967047, -9.1991965],
+    [38.697403, -9.1993142],
+    [38.6973842, -9.1997819],
+    [38.697231, -9.2010369],
+    [38.697312, -9.2019256],
+    [38.6974307, -9.2038212],
+    [38.6976132, -9.2042671],
+    [38.6978753, -9.204635],
+    [38.6990546, -9.2054875],
+    [38.699797, -9.2058124],
+    [38.7004707, -9.2060392],
+    [38.7015825, -9.206342],
+    [38.7020713, -9.2062657],
+    [38.7038218, -9.2064789],
+    [38.7047732, -9.2059189],
+    [38.7055288, -9.2049588],
+    [38.7068659, -9.2055275],
+    [38.7080706, -9.2061024],
+    [38.7090756, -9.2080452],
+    [38.7094439, -9.2083259],
+    [38.7096916, -9.208439],
+    [38.7099882, -9.2090928],
+    [38.7095883, -9.2106346],
+    [38.7096648, -9.2108354],
+    [38.7093012, -9.2114192],
+    [38.708927, -9.2127991],
+    [38.7089078, -9.2134006]
+  ],
+  '731': [
+    [38.7375056, -9.1647074],
+    [38.7383573, -9.1672647],
+    [38.7393622, -9.1670105],
+    [38.7403832, -9.1673678],
+    [38.7407901, -9.1677077],
+    [38.7414206, -9.1681402],
+    [38.7418009, -9.1676648],
+    [38.7425889, -9.166184],
+    [38.7426211, -9.1653811],
+    [38.7412437, -9.1632306],
+    [38.7411582, -9.1624059],
+    [38.7412819, -9.1593976],
+    [38.7414197, -9.1560486],
+    [38.7431571, -9.1567123],
+    [38.7448344, -9.1566131],
+    [38.7454562, -9.1568788],
+    [38.745764, -9.1556255],
+    [38.7442782, -9.1547712],
+    [38.743537, -9.1544185],
+    [38.7435778, -9.1536618],
+    [38.7439733, -9.1526313],
+    [38.7440516, -9.1520793],
+    [38.7450693, -9.1517568],
+    [38.7454161, -9.1531285],
+    [38.7456573, -9.1544476],
+    [38.7459462, -9.1551938],
+    [38.7464342, -9.1558874],
+    [38.7473145, -9.1568208],
+    [38.7483559, -9.1574073],
+    [38.7500292, -9.1582075],
+    [38.7505972, -9.1583914],
+    [38.7513904, -9.1588021],
+    [38.752488, -9.1573539],
+    [38.7530594, -9.1556063],
+    [38.7536626, -9.1547596],
+    [38.7542007, -9.1531459],
+    [38.7546692, -9.1520611],
+    [38.7551244, -9.1506662],
+    [38.7554486, -9.1496728],
+    [38.7559347, -9.1481694],
+    [38.7566832, -9.1458527],
+    [38.7571194, -9.1444867],
+    [38.7578413, -9.1422361],
+    [38.7584228, -9.1404362],
+    [38.7589559, -9.1387665],
+    [38.7596829, -9.1364989],
+    [38.760968, -9.1324912],
+    [38.761981, -9.1307369],
+    [38.7624849, -9.130196],
+    [38.7628747, -9.1290065],
+    [38.7627366, -9.126769],
+    [38.7612724, -9.1219161],
+    [38.7610294, -9.1212807],
+    [38.7608658, -9.1204445],
+    [38.7619584, -9.1203632],
+    [38.7627268, -9.1194378],
+    [38.7632178, -9.1188272],
+    [38.7642581, -9.1188911],
+    [38.765432, -9.1194146],
+    [38.7671778, -9.119541],
+    [38.7679728, -9.1191064],
+    [38.7689091, -9.118587],
+    [38.7689677, -9.1178342],
+    [38.7688746, -9.1165628],
+    [38.7689107, -9.1161996],
+    [38.7690574, -9.115586],
+    [38.7693421, -9.113517],
+    [38.7697645, -9.1117084],
+    [38.7701635, -9.1099595],
+    [38.770287, -9.1089993],
+    [38.7706975, -9.1086392],
+    [38.7710419, -9.1086801],
+    [38.7711068, -9.1095598],
+    [38.7718791, -9.109941],
+    [38.7731696, -9.1106078],
+    [38.775038, -9.1112698],
+    [38.7755948, -9.1105131],
+    [38.7745563, -9.1088189],
+    [38.7740179, -9.1070268],
+    [38.7734688, -9.1057513],
+    [38.7731284, -9.1052405],
+    [38.7736261, -9.1048688],
+    [38.7746577, -9.1048697],
+    [38.7747967, -9.1034018],
+    [38.7748001, -9.1021474],
+    [38.7748313, -9.1010468],
+    [38.7750788, -9.1008964],
+    [38.7752487, -9.1009806],
+    [38.7761796, -9.1013102],
+    [38.7771512, -9.101845],
+    [38.7791652, -9.1026433],
+    [38.7799786, -9.1025374],
+    [38.7802822, -9.1023742],
+    [38.78019, -9.1017135],
+    [38.7803717, -9.10152],
+    [38.7804878, -9.1018005],
+    [38.7804231, -9.1037845],
+    [38.7806563, -9.104419],
+    [38.7806025, -9.1047683],
+    [38.7794029, -9.104875],
+    [38.7790635, -9.1056369],
+    [38.7802428, -9.105966],
+    [38.7807442, -9.1065303],
+    [38.7812924, -9.1075064],
+    [38.7821763, -9.1084631],
+    [38.7839467, -9.1086127],
+    [38.7838799, -9.1100447],
+    [38.7838738, -9.1112184],
+    [38.7850319, -9.1113997],
+    [38.786039, -9.1113868],
+    [38.7870276, -9.1116743],
+    [38.7874642, -9.1117415],
+    [38.788384, -9.1110657],
+    [38.7900773, -9.1099197],
+    [38.7903992, -9.109109]
+  ]
+};
+
+// Route stops with names
+const ROUTE_STOPS = {
+  '728': [
+    {name:"Restelo - Av. Descobertas",lat:38.7089866,lon:-9.2133994},
+    {name:"Restelo - R. Antão Gonçalves",lat:38.7089327,lon:-9.2143448},
+    {name:"Restelo (Torres) - R. Antão Gonçalves",lat:38.7091997,lon:-9.2114528},
+    {name:"Restelo - R. Tristão Vaz",lat:38.7095217,lon:-9.2084598},
+    {name:"R. Tristão Vaz",lat:38.7075807,lon:-9.2059538},
+    {name:"R. Gonçalves Zarco",lat:38.7056467,lon:-9.2051048},
+    {name:"Estádio Restelo",lat:38.7038797,lon:-9.2065578},
+    {name:"B. Terras Forno",lat:38.7023618,lon:-9.2067052},
+    {name:"R. Jerónimos",lat:38.6997977,lon:-9.2059068},
+    {name:"Mosteiro Jerónimos",lat:38.6973477,lon:-9.2036498},
+    {name:"Belém",lat:38.6971382,lon:-9.2007171},
+    {name:"Estação Fluvial Belém",lat:38.6962247,lon:-9.1983348},
+    {name:"Hosp. Egas Moniz - Av. India",lat:38.6974277,lon:-9.1881448},
+    {name:"Alcântara Mar",lat:38.7028757,lon:-9.1732348},
+    {name:"Av. Infante Santo",lat:38.7034087,lon:-9.1670178},
+    {name:"Cais Rocha (Museu Nac. Arte Antiga)",lat:38.7036193,lon:-9.1627597},
+    {name:"Santos",lat:38.7061886,lon:-9.155753},
+    {name:"Conde Barão - Av. 24 Julho",lat:38.7063124,lon:-9.1485279},
+    {name:"Cais Sodré",lat:38.706247,lon:-9.145019},
+    {name:"Corpo Santo",lat:38.7072365,lon:-9.1411699},
+    {name:"Pç. Comércio",lat:38.7083802,lon:-9.1363643},
+    {name:"Sul e Sueste",lat:38.7082892,lon:-9.1334927},
+    {name:"Alfândega (Terminal Cruzeiros)",lat:38.7106008,lon:-9.1273058},
+    {name:"Estação Sta. Apolónia",lat:38.7139942,lon:-9.1219192},
+    {name:"Estação Sta. Apolónia (Mercadorias)",lat:38.7164409,lon:-9.1192894},
+    {name:"Av. Inf. D. Henrique (Tipografia)",lat:38.7230577,lon:-9.1130448},
+    {name:"Av. Inf. D. Henrique (Ponte Xabregas)",lat:38.7246099,lon:-9.1117002},
+    {name:"Xabregas - R. Manutenção",lat:38.7268546,lon:-9.1096599},
+    {name:"Av. Inf. D. Henrique (Doca Xabregas)",lat:38.7289867,lon:-9.1070158},
+    {name:"Av. Inf. D. Henrique (Beato ID)",lat:38.7317613,lon:-9.1049619},
+    {name:"Beato",lat:38.7355404,lon:-9.1036343},
+    {name:"Palácio Mitra",lat:38.7396827,lon:-9.1028628},
+    {name:"Poço Bispo",lat:38.743042,lon:-9.1017612},
+    {name:"Fábrica Braço Prata",lat:38.7446257,lon:-9.1010158},
+    {name:"R. Fernando Palha",lat:38.7472147,lon:-9.0993048},
+    {name:"Matinha",lat:38.7477707,lon:-9.0968408},
+    {name:"Fábrica Gás",lat:38.7510107,lon:-9.0958878},
+    {name:"Parque Nações Sul",lat:38.7549895,lon:-9.096497},
+    {name:"Passeio Adamastor",lat:38.758081,lon:-9.096346},
+    {name:"Oceanário Lisboa",lat:38.7611888,lon:-9.0961313},
+    {name:"Av. Mediterrâneo",lat:38.7625067,lon:-9.0981018},
+    {name:"R. Caribe",lat:38.7662237,lon:-9.0977998},
+    {name:"Estação Oriente",lat:38.767146,lon:-9.099103},
+    {name:"Olivais Velho - Av. Inf. D. Henrique",lat:38.7700437,lon:-9.1043178},
+    {name:"Pç. José Queirós",lat:38.7739677,lon:-9.1047728},
+    {name:"Moscavide (Metro)",lat:38.7747373,lon:-9.102145},
+    {name:"R. Laureano Oliveira",lat:38.7769757,lon:-9.1017414},
+    {name:"Moscavide Centro - R. Franc. M. Beato",lat:38.7796377,lon:-9.1024988},
+    {name:"Portela (Seminário)",lat:38.7813386,lon:-9.1075098},
+    {name:"Portela - R. Escritores",lat:38.7824427,lon:-9.1083748},
+    {name:"Portela - Av. República",lat:38.7839477,lon:-9.1098248},
+    {name:"C. Comercial Portela",lat:38.7838495,lon:-9.1123614},
+    {name:"Portela - Av. Descobrimentos",lat:38.7819447,lon:-9.1139878}
+  ],
+  '731': [
+    {name:"Av. José Malhoa",lat:38.7376133,lon:-9.1646527},
+    {name:"Estação Sete Rios",lat:38.7406735,lon:-9.1674765},
+    {name:"Esc. D. Pedro V",lat:38.7412257,lon:-9.1632428},
+    {name:"R. Filipe Mata",lat:38.7412697,lon:-9.1593968},
+    {name:"R. Beneficência (Rego)",lat:38.7416867,lon:-9.1561648},
+    {name:"R. Beneficência",lat:38.7431457,lon:-9.1566958},
+    {name:"B. Santos",lat:38.7448477,lon:-9.1565768},
+    {name:"R. Diogo Macedo (Escola)",lat:38.7456747,lon:-9.1558938},
+    {name:"Qta. Freiras",lat:38.7439477,lon:-9.1547708},
+    {name:"Av. Álvaro Pais",lat:38.7453367,lon:-9.1524118},
+    {name:"Hosp. Sta. Maria - Av. Prof. Gama Pinto",lat:38.7485587,lon:-9.1573908},
+    {name:"Hosp. Sta. Maria - Av. Prof. Gama Pinto",lat:38.7500837,lon:-9.1581288},
+    {name:"Cantina Universidade",lat:38.7514027,lon:-9.1587608},
+    {name:"Cidade Universitária",lat:38.7528497,lon:-9.1559158},
+    {name:"Campo Grande - Av. Brasil",lat:38.7550985,lon:-9.1504764},
+    {name:"Hosp. Júlio Matos",lat:38.7570407,lon:-9.1444458},
+    {name:"LNEC",lat:38.7583224,lon:-9.140348},
+    {name:"Pote Água",lat:38.7596407,lon:-9.1364738},
+    {name:"Av. Brasil (Rot. Relógio)",lat:38.7624107,lon:-9.1300828},
+    {name:"Av. Mar. Gomes Costa (Qta. Teresinhas)",lat:38.7612307,lon:-9.1219378},
+    {name:"Av. Cidade L. Marques S",lat:38.7626767,lon:-9.1193808},
+    {name:"Olivais Sul",lat:38.7642797,lon:-9.1187968},
+    {name:"Av. Cidade L. Marques N",lat:38.7674097,lon:-9.1193118},
+    {name:"Av. Berlim (Viveiros)",lat:38.7689207,lon:-9.1178398},
+    {name:"Piscina Olivais",lat:38.7697439,lon:-9.1117001},
+    {name:"Qta. Conde Arcos",lat:38.7705407,lon:-9.1086628},
+    {name:"R. Sarg. Armando M. Ferreira",lat:38.7719037,lon:-9.1098638},
+    {name:"Olivais Norte",lat:38.7753807,lon:-9.1107628},
+    {name:"Pç. José Queirós",lat:38.7739677,lon:-9.1047728},
+    {name:"Moscavide (Metro)",lat:38.7747373,lon:-9.102145},
+    {name:"R. Laureano Oliveira",lat:38.7769757,lon:-9.1017414},
+    {name:"Moscavide Centro",lat:38.7798374,lon:-9.1024733},
+    {name:"Portela (Seminário)",lat:38.7813386,lon:-9.1075098},
+    {name:"Portela - R. Escritores",lat:38.7824427,lon:-9.1083748},
+    {name:"Portela - Av. República",lat:38.7839477,lon:-9.1098248},
+    {name:"Portela - R. Mouzinho Albuquerque",lat:38.7856147,lon:-9.1113247},
+    {name:"Sacavém - R. Estado Índia",lat:38.7903703,lon:-9.1090953}
+  ]
+};
+
+// ─── WATCH LIST (persisted in localStorage) ───
+function getWatchList() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch { return []; }
+}
+function saveWatchList(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+function addWatchLine(lineName, agencyId) {
+  const list = getWatchList();
+  if (list.some(item => item.line === lineName && item.agency === agencyId)) return false;
+  list.push({ line: lineName, agency: agencyId, addedAt: Date.now() });
+  saveWatchList(list);
+  // Si la línea tiene alias, añadir también su línea hermana
+  const aliases = LINE_ALIASES[lineName];
+  if (aliases && agencyId === '1') {
+    aliases.forEach(alias => {
+      if (!list.some(item => item.line === alias && item.agency === agencyId)) {
+        list.push({ line: alias, agency: agencyId, addedAt: Date.now() });
+      }
+    });
+    saveWatchList(list);
+  }
+  renderWatchList();
+  updateMap();
+  return true;
+}
+function removeWatchLine(lineName, agencyId) {
+  let list = getWatchList();
+  list = list.filter(item => !(item.line === lineName && item.agency === agencyId));
+  saveWatchList(list);
+  renderWatchList();
+  updateMap();
+}
+function isLineWatched(lineName, agencyId) {
+  return getWatchList().some(item => item.line === lineName && item.agency === agencyId);
+}
+
+function renderWatchList() {
+  const list = getWatchList();
+  const body = document.getElementById('watchlist-body');
+  const countEl = document.getElementById('watchlist-count');
+
+  countEl.textContent = `${list.length} linha${list.length !== 1 ? 's' : ''}`;
+
+  if (list.length === 0) {
+    body.innerHTML = '<div id="watchlist-empty">Nenhuma linha seguida ainda.<br>Clique num bus e use ⭐ Seguir linha</div>';
+    return;
+  }
+
+  body.innerHTML = list.map((item, idx) => {
+    const color = AGENCY_COLORS[item.agency] || '#7c5cfc';
+    const agencyName = AGENCY_NAMES[item.agency] || `Op. ${item.agency}`;
+    return `<div class="watchlist-item" data-idx="${idx}">
+      <div>
+        <div class="line-name" style="color:${color}">🚌 ${item.line}</div>
+        <div class="line-agency">${agencyName}</div>
+      </div>
+      <button class="remove-btn" data-line="${item.line}" data-agency="${item.agency}" title="Remover">✕</button>
+    </div>`;
+  }).join('');
+
+  // Remove buttons
+  body.querySelectorAll('.remove-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeWatchLine(btn.dataset.line, btn.dataset.agency);
+    });
+  });
+  // Click item to show on map
+  body.querySelectorAll('.watchlist-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const line = el.querySelector('.remove-btn')?.dataset.line;
+      const agency = el.querySelector('.remove-btn')?.dataset.agency;
+      if (line) {
+        watchMode = true;
+        document.getElementById('watch-mode-btn').classList.add('active');
+        searchLine = line;
+        document.getElementById('line-search').value = line;
+        updateMap();
+        closeWatchList();
+      }
+    });
+  });
+}
+
+function toggleWatchList() {
+  const panel = document.getElementById('watchlist-panel');
+  const backdrop = document.getElementById('watchlist-backdrop');
+  const isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open');
+  backdrop.classList.toggle('show');
+  if (!isOpen) renderWatchList();
+}
+
+function closeWatchList() {
+  document.getElementById('watchlist-panel').classList.remove('open');
+  document.getElementById('watchlist-backdrop').classList.remove('show');
+  // Exit editor mode
+  document.getElementById('watchlist-editor').style.display = 'none';
+  document.getElementById('watchlist-body').style.display = '';
+}
+
+// ─── WATCHLIST EDITOR ───
+let editorOpen = false;
+
+function toggleEditor() {
+  editorOpen = !editorOpen;
+  const editor = document.getElementById('watchlist-editor');
+  const body = document.getElementById('watchlist-body');
+  const btn = document.getElementById('watchlist-edit-btn');
+  
+  if (editorOpen) {
+    editor.style.display = 'flex';
+    body.style.display = 'none';
+    btn.textContent = '✅';
+    renderEditor();
+  } else {
+    editor.style.display = 'none';
+    body.style.display = '';
+    btn.textContent = '✏️';
+  }
+}
+
+function renderEditor(filter) {
+  const list = document.getElementById('editor-list');
+  const watchList = getWatchList();
+  
+  let lines = AVAILABLE_LINES;
+  if (filter) {
+    const f = filter.toLowerCase();
+    lines = lines.filter(l => l.line.includes(f));
+  }
+  
+  // Sort: watched first, then by line number
+  lines.sort((a, b) => {
+    const aWatched = isLineWatched(a.line, a.agency);
+    const bWatched = isLineWatched(b.line, b.agency);
+    if (aWatched && !bWatched) return -1;
+    if (!aWatched && bWatched) return 1;
+    return parseInt(a.line) - parseInt(b.line);
+  });
+  
+  list.innerHTML = lines.map(item => {
+    const watched = isLineWatched(item.line, item.agency);
+    const color = AGENCY_COLORS[item.agency] || '#7c5cfc';
+    const agencyName = AGENCY_NAMES[item.agency] || `Op. ${item.agency}`;
+    return `<div class="editor-line-item" data-line="${item.line}" data-agency="${item.agency}">
+      <div class="line-info">
+        <div class="line-check ${watched ? 'checked' : ''}">${watched ? '✓' : ''}</div>
+        <div>
+          <div class="line-number" style="color:${color}">🚌 ${item.line}</div>
+          <div class="line-agency">${agencyName}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  
+  // Toggle on click
+  list.querySelectorAll('.editor-line-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const line = el.dataset.line;
+      const agency = el.dataset.agency;
+      if (isLineWatched(line, agency)) {
+        removeWatchLine(line, agency);
+      } else {
+        addWatchLine(line, agency);
+      }
+      // Re-render with current filter
+      const searchVal = document.getElementById('editor-search-input').value;
+      renderEditor(searchVal);
+    });
+  });
+}
+
+// ─── INIT MAP ───
+let tileLayerInstance;
+
+function initMap() {
+  map = L.map('map', {
+    center: CARRS_CENTER,
+    zoom: CARRS_ZOOM,
+    zoomControl: true,
+    attributionControl: false
+  });
+
+  tileLayerInstance = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19
+  }).addTo(map);
+
+  vehiclesLayer = L.layerGroup().addTo(map);
+  stopsLayer = L.layerGroup().addTo(map);
+  routeLayer = L.layerGroup().addTo(map);
+
+  map.on('click', () => closePanel());
+}
+
+// ─── FORMAT LINE NAME ───
+function formatLineName(v) {
+  let line = v.line_id || '';
+  line = line.replace(/^\[\d+\]/, '');
+  if (v.agency_id === '1') line = line.replace(/^\[1\]/, '');
+  // Mapear códigos internos a nombres comerciales para Carris
+  const COMMERCIAL_NAMES = {
+    '196': '722', '204': '728', '190': '731',
+    '100': '708', '101': '711', '102': '714', '103': '727',
+    '104': '729', '105': '718', '106': '750', '107': '732',
+    '108': '746', '109': '751', '110': '765', '111': '768',
+    '112': '767', '114': '742', '115': '794', '116': '726',
+    '117': '738', '118': '755', '120': '799', '121': '723',
+    '122': '713', '123': '701', '124': '773', '136': '206',
+    '143': '720', '144': '759', '145': '793', '146': '702',
+    '147': '706', '148': '709', '150': '758', '151': '781',
+    '152': '782', '158': '51E', '160': '53E', '161': '54E',
+    '163': '797', '164': '716', '165': '703', '167': '753',
+    '168': '764', '169': '748', '170': '717', '171': '760',
+    '172': '735', '173': '737', '174': '796', '175': '756',
+    '176': '705', '177': '747', '178': '724', '179': '778',
+    '189': '712', '191': '770', '192': '774', '193': '776',
+    '194': '798', '195': '749', '197': '725', '198': '730',
+    '199': '736', '200': '744', '201': '754', '203': '783',
+    '205': '734', '208': '26B', '209': '29B', '210': '31B',
+    '211': '32B', '212': '40B', '213': '24E', '219': '76B',
+    '220': '73B', '221': '79B', '224': '37B', '226': '34B',
+    '227': '58B', '232': '41B', '236': '22B', '238': '64B',
+    '239': '46B', '240': '55B', '241': '61B', '242': '10B',
+    '243': '13B', '244': '52B', '245': '19B', '247': '17B',
+    '248': '771', '250': '65B', '251': '49B', '253': '67B',
+    '277': '45B', '278': '71B', '279': '72B', '282': '763',
+    '284': '55E', '60': '201', '61': '202', '62': '203',
+    '64': '207', '65': '208', '66': '210', '75': '28E',
+    '76': '15E', '77': '12E', '78': '18E', '79': '25E',
+  };
+  if (v.agency_id === '1' && COMMERCIAL_NAMES[line]) {
+    line = COMMERCIAL_NAMES[line];
+  }
+  return line;
+}
+
+function getAgencyId(v) {
+  let ln = v.line_id || '';
+  let m = ln.match(/^\[(\d+)\]/);
+  return m ? m[1] : (v.agency_id || '?');
+}
+
+// ─── VEHICLE STATUS ───
+function getStatusClass(speed) {
+  if (speed === undefined || speed === null) return 'stopped';
+  if (speed === 0) return 'stopped';
+  if (speed < 15) return 'moving';
+  return 'fast';
+}
+
+function getStatusText(speed) {
+  if (speed === undefined || speed === null) return 'Parado';
+  if (speed === 0) return '🛑 Parado';
+  if (speed < 15) return '🚌 Em marcha';
+  return '💨 Rápido';
+}
+
+// ─── UPDATE VEHICLES ───
+async function fetchVehicles() {
+  try {
+    const url = 'https://go.tmlmobilidade.pt/hub/api/v1/realtime/vehicles/positions';
+    const resp = await fetch(url, { mode: 'cors' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = await resp.json();
+    vehiclesData = json.data || [];
+    updateMap();
+    updateStatus();
+    if (isFirstLoad) {
+      isFirstLoad = false;
+      fitBounds();
+    }
+  } catch (e) {
+    document.getElementById('status-text').textContent = '⚠️ Erro a carregar dados';
+    console.error('Fetch error:', e);
+  }
+}
+
+function fitBounds() {
+  if (vehiclesData.length === 0) return;
+  const bounds = [];
+  for (const v of vehiclesData) {
+    if (v.latitude && v.longitude) {
+      bounds.push([v.latitude, v.longitude]);
+    }
+  }
+  if (bounds.length > 0) {
+    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+  }
+}
+
+function updateMap() {
+  const filtered = filterVehicles();
+
+  document.getElementById('vehicle-count').textContent =
+    `${filtered.length} veículo${filtered.length !== 1 ? 's' : ''}`;
+
+  const now = Date.now();
+  const newMarkers = {};
+  const prevData = vehiclesLayer._prevData || {};
+
+  // Track which vehicle IDs are still visible
+  const seenIds = new Set();
+
+  for (const v of filtered) {
+    const lat = v.latitude;
+    const lon = v.longitude;
+    if (!lat || !lon) continue;
+
+    const lineName = formatLineName(v);
+    const agency = getAgencyId(v);
+    const isWatched = isLineWatched(lineName, agency);
+    const vehicleId = v._id || v.vehicle_id;
+    seenIds.add(vehicleId);
+
+    let marker = prevData[vehicleId]?.marker;
+
+    if (marker) {
+      // Move existing marker with smooth animation
+      const prevLat = marker._targetLat !== undefined ? marker._targetLat : marker.getLatLng().lat;
+      const prevLon = marker._targetLon !== undefined ? marker._targetLon : marker.getLatLng().lng;
+      marker._fromLat = prevLat;
+      marker._fromLon = prevLon;
+      marker._targetLat = lat;
+      marker._targetLon = lon;
+      marker._animStart = now;
+
+      // Update stored vehicle data
+      marker._vehicleData = v;
+
+      // Update icon class
+      let className = 'bus-marker ' + getStatusClass(v.speed);
+      if (isWatched) className += ' watched';
+      if (selectedVehicleId === vehicleId) className += ' highlight';
+      marker._targetClass = className;
+
+      // Update icon if watched status changed
+      const wasWatched = marker._wasWatched;
+      if (wasWatched !== isWatched) {
+        marker.setIcon(L.divIcon({
+          className,
+          html: `<span>${lineName}</span>`,
+          iconSize: selectedVehicleId === vehicleId ? [40, 40] : [32, 32],
+          iconAnchor: selectedVehicleId === vehicleId ? [20, 20] : [16, 16]
+        }));
+        marker._wasWatched = isWatched;
+      }
+    } else {
+      // New marker
+      let className = 'bus-marker ' + getStatusClass(v.speed);
+      if (isWatched) className += ' watched';
+
+      const icon = L.divIcon({
+        className,
+        html: `<span>${lineName}</span>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+
+      marker = L.marker([lat, lon], { icon });
+      marker._vehicleId = vehicleId;
+      marker._vehicleData = v;
+      marker._targetLat = lat;
+      marker._targetLon = lon;
+      marker._fromLat = lat;
+      marker._fromLon = lon;
+      marker._animStart = now;
+      marker._wasWatched = isWatched;
+
+      marker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        selectVehicle(v, marker);
+      });
+      
+      // Tooltip for watched buses
+      if (isWatched) {
+        marker.bindTooltip(`🚌 ${lineName}`, { permanent: false, direction: 'top', offset: [0, -10] });
+      }
+
+      vehiclesLayer.addLayer(marker);
+    }
+
+    // Highlight selected
+    if (selectedVehicleId === vehicleId) {
+      marker.setIcon(L.divIcon({
+        className: 'bus-marker ' + getStatusClass(v.speed) + ' highlight' + (isWatched ? ' watched' : ''),
+        html: `<span>${lineName}</span>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      }));
+    }
+
+    newMarkers[vehicleId] = { marker, v };
+  }
+
+  // Remove markers that are no longer visible
+  for (const id in prevData) {
+    if (!seenIds.has(id)) {
+      vehiclesLayer.removeLayer(prevData[id].marker);
+    }
+  }
+
+  // Store current state for next frame
+  vehiclesLayer._prevData = newMarkers;
+  allMarkers = {};
+  for (const id in newMarkers) {
+    allMarkers[id] = newMarkers[id].marker;
+  }
+
+  // Start animation loop
+  if (!animationFrameId) {
+    animateMarkers();
+  }
+
+  // Show learned stops for watched lines
+  showLearnedStops();
+
+  // Show route line for first searched line
+  if (searchLine) {
+    showRouteLine(searchLine);
+  } else if (watchMode) {
+    const list = getWatchList();
+    if (list.length > 0) showRouteLine(list[0].line);
+  } else {
+    routeLayer.clearLayers();
+  }
+
+  // Update panel for selected vehicle
+  if (selectedVehicleId) {
+    const stillHere = filtered.find(v => v._id === selectedVehicleId || v.vehicle_id === selectedVehicleId);
+    if (stillHere) {
+      showVehiclePanel(stillHere);
+      // Auto-follow if tracking
+      if (trackingVehicleId === selectedVehicleId && stillHere.latitude && stillHere.longitude) {
+        map.panTo([stillHere.latitude, stillHere.longitude], { animate: true, duration: 0.5 });
+      }
+    } else {
+      if (!showOnlySelected) closePanel();
+    }
+  }
+}
+
+// Smooth animation: interpolate positions every frame
+function animateMarkers() {
+  animationFrameId = requestAnimationFrame(animateMarkers);
+  const now = Date.now();
+
+  const prevData = vehiclesLayer._prevData || {};
+  let anyAnimating = false;
+
+  for (const id in prevData) {
+    const { marker } = prevData[id];
+    if (marker._targetLat === undefined || marker._fromLat === undefined) continue;
+
+    const elapsed = now - (marker._animStart || now);
+    const t = Math.min(elapsed / ANIM_DURATION, 1);
+    // Ease-out cubic for smooth deceleration
+    const ease = 1 - Math.pow(1 - t, 3);
+
+    const lat = marker._fromLat + (marker._targetLat - marker._fromLat) * ease;
+    const lon = marker._fromLon + (marker._targetLon - marker._fromLon) * ease;
+
+    marker.setLatLng([lat, lon]);
+
+    if (t < 1) anyAnimating = true;
+  }
+
+  if (!anyAnimating) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+}
+
+function filterVehicles() {
+  let filtered = vehiclesData;
+  
+  // Solo mode: show only selected vehicle
+  if (showOnlySelected && selectedVehicleId) {
+    return filtered.filter(v => {
+      const vid = v._id || v.vehicle_id;
+      return vid === selectedVehicleId;
+    });
+  }
+
+  const watchList = getWatchList();
+
+  // If watch mode is ON, only show watched lines
+  if (watchMode && watchList.length > 0) {
+    filtered = filtered.filter(v => {
+      const lineName = formatLineName(v);
+      const agency = getAgencyId(v);
+      return isLineWatched(lineName, agency);
+    });
+    return filtered;
+  }
+
+  if (activeAgency !== 'all') {
+    filtered = filtered.filter(v => getAgencyId(v) === activeAgency);
+  }
+
+  if (searchLine) {
+    const terms = searchLine.toLowerCase().split(/[\s,]+/).filter(t => t);
+    // Expandir términos con alias (728 ↔ 196)
+    const expandedTerms = [];
+    terms.forEach(t => {
+      expandLineSearch(t).forEach(et => expandedTerms.push(et.toLowerCase()));
+    });
+    filtered = filtered.filter(v => {
+      const ln = formatLineName(v).toLowerCase();
+      return expandedTerms.some(t => ln.includes(t));
+    });
+  }
+
+  return filtered;
+}
+
+function updateStatus() {
+  const now = new Date();
+  const time = now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  document.getElementById('status-text').textContent =
+    `${vehiclesData.length} veículo${vehiclesData.length !== 1 ? 's' : ''} · ${time}`;
+}
+
+// ─── SELECT VEHICLE ───
+function selectVehicle(v, marker) {
+  selectedVehicleId = v._id || v.vehicle_id;
+  selectedVehicleData = v;
+  showVehiclePanel(v);
+  map.panTo([v.latitude, v.longitude], { animate: true, duration: 0.3 });
+}
+
+function showVehiclePanel(v) {
+  const panel = document.getElementById('info-panel');
+  panel.classList.add('open');
+
+  const lineName = formatLineName(v);
+  const agency = getAgencyId(v);
+  const agencyName = AGENCY_NAMES[agency] || `Operadora ${agency}`;
+  const color = AGENCY_COLORS[agency] || '#7c5cfc';
+  const isWatched = isLineWatched(lineName, agency);
+  const vehId = v._id || v.vehicle_id;
+  const isTracking = trackingVehicleId === vehId;
+
+  document.getElementById('panel-title').innerHTML =
+    `<span style="color:${color}">🚌 ${lineName}</span> · ${agencyName}`;
+
+  const speed = v.speed !== undefined ? `${v.speed} km/h` : '—';
+  const status = getStatusText(v.speed);
+  const bearing = v.bearing !== undefined ? `${v.bearing}°` : '—';
+  const stopId = v.stop_id || '—';
+  const solo = showOnlySelected && selectedVehicleId === vehId ? ' 🔍 Solo' : '';
+
+  const html = `
+    <div class="detail-row"><span class="label">Velocidade</span><span class="value">${speed}</span></div>
+    <div class="detail-row"><span class="label">Estado</span><span class="value">${status}${solo}</span></div>
+    <div class="detail-row"><span class="label">Rumo</span><span class="value">${bearing}</span></div>
+    <div class="detail-row"><span class="label">Latitude</span><span class="value">${v.latitude?.toFixed(5)}</span></div>
+    <div class="detail-row"><span class="label">Longitude</span><span class="value">${v.longitude?.toFixed(5)}</span></div>
+    <div class="detail-row"><span class="label">ID Veículo</span><span class="value">${v.vehicle_id || '—'}</span></div>
+    <div class="detail-row"><span class="label">Última paragem</span><span class="value">${stopId}</span></div>
+    <div class="detail-row"><span class="label">Current status</span><span class="value">${v.current_status || '—'}</span></div>
+  `;
+  document.getElementById('panel-details').innerHTML = html;
+
+  // Watch button
+  const watchBtn = document.getElementById('panel-watch-btn');
+  watchBtn.textContent = isWatched ? '⭐ Seguindo' : '⭐ Seguir linha';
+  watchBtn.classList.toggle('active', isWatched);
+  watchBtn.dataset.line = lineName;
+  watchBtn.dataset.agency = agency;
+
+  // Track button
+  const trackBtn = document.getElementById('panel-track-btn');
+  trackBtn.textContent = isTracking ? '🎯 Seguindo...' : '🎯 Seguir este bus';
+  trackBtn.classList.toggle('active', isTracking);
+  trackBtn.dataset.vehicleId = vehId;
+
+  // Solo button
+  const soloBtn = document.getElementById('panel-solo-btn');
+  soloBtn.textContent = showOnlySelected && selectedVehicleId === vehId ? '🔍 Mostrando só este' : '🔍 Mostrar só este';
+  soloBtn.classList.toggle('active', showOnlySelected && selectedVehicleId === vehId);
+  soloBtn.dataset.vehicleId = vehId;
+}
+
+function closePanel() {
+  if (!showOnlySelected) {
+    selectedVehicleId = null;
+    selectedVehicleData = null;
+  }
+  document.getElementById('info-panel').classList.remove('open');
+}
+
+// ─── GPS / USER LOCATION ───
+let gpsRetries = 0;
+
+function startGPS() {
+  if (!navigator.geolocation) {
+    alert('Geolocalização não suportada neste navegador.\nTenta usar num telemóvel ou num browser com GPS.');
+    return;
+  }
+  
+  gpsActive = !gpsActive;
+  const btn = document.getElementById('gps-btn');
+  
+  if (gpsActive) {
+    btn.classList.add('active');
+    document.getElementById('status-text').textContent = '📍 A localizar... (ativa o GPS do telemóvel)';
+    gpsRetries = 0;
+    
+    const onSuccess = (pos) => {
+      onGPSPosition(pos);
+      gpsRetries = 0;
+    };
+    
+    const onError = (err) => {
+      console.warn('GPS error:', err.code, err.message);
+      gpsRetries++;
+      
+      if (gpsRetries < 3) {
+        document.getElementById('status-text').textContent = `📍 Tentativa ${gpsRetries+1}/3...`;
+        // Try again with different options
+        setTimeout(() => {
+          if (gpsActive) {
+            navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+              enableHighAccuracy: gpsRetries < 2,
+              timeout: 8000,
+              maximumAge: 5000
+            });
+          }
+        }, 1000);
+      } else {
+        document.getElementById('status-text').textContent = '⚠️ GPS indisponível. Ativa o GPS e tenta de novo.';
+        gpsActive = false;
+        btn.classList.remove('active');
+      }
+    };
+    
+    // First get a quick position
+    navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+      enableHighAccuracy: true,
+      timeout: 8000,
+      maximumAge: 5000
+    });
+    
+    // Then start continuous tracking
+    if (gpsWatchId !== null) {
+      navigator.geolocation.clearWatch(gpsWatchId);
+    }
+    gpsWatchId = navigator.geolocation.watchPosition(
+      onSuccess,
+      (err) => { /* silent on watch errors */ },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 3000 }
+    );
+  } else {
+    stopGPS();
+  }
+}
+
+function stopGPS() {
+  gpsActive = false;
+  document.getElementById('gps-btn').classList.remove('active');
+  if (gpsWatchId !== null) {
+    navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId = null;
+  }
+  if (userMarker) {
+    map.removeLayer(userMarker);
+    userMarker = null;
+  }
+  userLocation = null;
+}
+
+function onGPSPosition(pos) {
+  const { latitude, longitude, accuracy } = pos.coords;
+  userLocation = { lat: latitude, lon: longitude, accuracy };
+  
+  // Update marker
+  if (userMarker) {
+    userMarker.setLatLng([latitude, longitude]);
+    userMarker.setTooltipContent(`📍 Tu (precisão: ${Math.round(accuracy)}m)`);
+  } else {
+    // Create marker with pulse effect
+    userMarker = L.marker([latitude, longitude], {
+      icon: L.divIcon({
+        className: '',
+        html: '<div class="user-location-pulse"></div><div class="user-location-marker"></div>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      })
+    });
+    userMarker.bindTooltip(`📍 Tu (precisão: ${Math.round(accuracy)}m)`, { permanent: false, direction: 'top' });
+    userMarker.addTo(map);
+    map.setView([latitude, longitude], 15);
+  }
+  
+  document.getElementById('status-text').textContent =
+    `📍 ${latitude.toFixed(5)}, ${longitude.toFixed(5)} ±${Math.round(accuracy)}m`;
+  document.getElementById('gps-btn').classList.add('active');
+}
+
+// ─── ROUTE RENDERING ───
+function showLearnedStops() {
+  // Deprecated - use showRouteLine instead
+  stopsLayer.clearLayers();
+}
+
+function showRouteLine(lineName) {
+  routeLayer.clearLayers();
+  stopsLayer.clearLayers();
+  
+  // Draw the route shape polyline
+  const coords = ROUTE_SHAPES[lineName];
+  if (coords && coords.length >= 2) {
+    const colors = {'728': '#7c5cfc', '731': '#ff6b6b'};
+    const color = colors[lineName] || '#7c5cfc';
+    
+    const polyline = L.polyline(coords, {
+      color: color,
+      weight: 4,
+      opacity: 0.6,
+      dashArray: '10 8',
+    });
+    polyline.bindTooltip(`🚌 ${lineName}`, { direction: 'top', offset: [0, -5] });
+    routeLayer.addLayer(polyline);
+  }
+  
+  // Show stops for this line
+  const stops = ROUTE_STOPS[lineName];
+  if (!stops) return;
+  
+  stops.forEach(s => {
+    const stopIcon = L.divIcon({
+      className: '',
+      html: `<div style="width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid #7c5cfc;box-shadow:0 0 6px rgba(124,92,252,0.5);"></div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+    const marker = L.marker([s.lat, s.lon], { icon: stopIcon });
+    marker.bindTooltip(`🚏 ${s.name}`, { direction: 'top', offset: [0, -5] });
+    stopsLayer.addLayer(marker);
+  });
+}
+
+// ─── THEME TOGGLE ───
+function toggleTheme() {
+  const html = document.documentElement;
+  const isLight = html.getAttribute('data-theme') === 'light';
+  const tilesUrl = isLight
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  
+  if (isLight) {
+    html.removeAttribute('data-theme');
+    localStorage.setItem('lisboa_bus_theme', 'dark');
+  } else {
+    html.setAttribute('data-theme', 'light');
+    localStorage.setItem('lisboa_bus_theme', 'light');
+  }
+  
+  // Reemplazar tiles
+  if (tileLayerInstance) {
+    map.removeLayer(tileLayerInstance);
+    tileLayerInstance = L.tileLayer(tilesUrl, { maxZoom: 19 }).addTo(map);
+  }
+  
+  document.getElementById('theme-toggle-btn').textContent = isLight ? '🌓' : '☀️';
+}
+
+function loadTheme() {
+  const saved = localStorage.getItem('lisboa_bus_theme');
+  if (saved === 'dark') {
+    // Solo modo oscuro si el usuario lo guardó explícitamente
+    document.documentElement.removeAttribute('data-theme');
+    document.getElementById('theme-toggle-btn').textContent = '🌓';
+    // Cambiar tiles a oscuros
+    if (tileLayerInstance) {
+      map.removeLayer(tileLayerInstance);
+      tileLayerInstance = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+    }
+  } else {
+    // Por defecto: MODO DÍA ☀️
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.getElementById('theme-toggle-btn').textContent = '☀️';
+    // Cambiar tiles a claros
+    if (tileLayerInstance) {
+      map.removeLayer(tileLayerInstance);
+      tileLayerInstance = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+    }
+    // Guardar preferencia
+    localStorage.setItem('lisboa_bus_theme', 'light');
+  }
+}
+
+// Refresh stops when watch list changes (override addWatchLine temporarily)
+const _origAddWatchLine = addWatchLine;
+addWatchLine = function(lineName, agencyId) {
+  const result = _origAddWatchLine(lineName, agencyId);
+  if (result) showLearnedStops();
+  return result;
+};
+
+const _origRemoveWatchLine = removeWatchLine;
+removeWatchLine = function(lineName, agencyId) {
+  _origRemoveWatchLine(lineName, agencyId);
+  showLearnedStops();
+};
+
+// ─── EVENT LISTENERS ───
+
+// Agency filter buttons
+document.querySelectorAll('.agency-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelector('.agency-btn.active')?.classList.remove('active');
+    btn.classList.add('active');
+    activeAgency = btn.dataset.agency;
+    watchMode = false;
+    document.getElementById('watch-mode-btn').classList.remove('active');
+    updateMap();
+    if (vehiclesData.length > 0) updateStatus();
+  });
+});
+
+// Search
+document.getElementById('search-btn').addEventListener('click', () => {
+  searchLine = document.getElementById('line-search').value.trim();
+  if (searchLine) {
+    watchMode = false;
+    document.getElementById('watch-mode-btn').classList.remove('active');
+  }
+  updateMap();
+});
+
+document.getElementById('line-search').addEventListener('keyup', (e) => {
+  if (e.key === 'Enter') {
+    searchLine = e.target.value.trim();
+    if (searchLine) {
+      watchMode = false;
+      document.getElementById('watch-mode-btn').classList.remove('active');
+    }
+    updateMap();
+  }
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  document.getElementById('line-search').value = '';
+  searchLine = '';
+  activeAgency = 'all';
+  watchMode = false;
+  showOnlySelected = false;
+  trackingVehicleId = null;
+  document.querySelector('.agency-btn.active')?.classList.remove('active');
+  document.querySelector('[data-agency="all"]')?.classList.add('active');
+  document.getElementById('watch-mode-btn').classList.remove('active');
+  updateMap();
+});
+
+// Watch mode toggle
+document.getElementById('watch-mode-btn').addEventListener('click', () => {
+  const list = getWatchList();
+  if (list.length === 0) {
+    toggleWatchList();
+    return;
+  }
+  watchMode = !watchMode;
+  document.getElementById('watch-mode-btn').classList.toggle('active', watchMode);
+  updateMap();
+});
+
+document.getElementById('watchlist-mode-btn').addEventListener('click', () => {
+  watchMode = true;
+  document.getElementById('watch-mode-btn').classList.add('active');
+  closeWatchList();
+  updateMap();
+});
+
+// Panel watch button
+document.getElementById('panel-watch-btn').addEventListener('click', () => {
+  const btn = document.getElementById('panel-watch-btn');
+  const lineName = btn.dataset.line;
+  const agencyId = btn.dataset.agency;
+  if (!lineName) return;
+
+  if (isLineWatched(lineName, agencyId)) {
+    removeWatchLine(lineName, agencyId);
+    btn.textContent = '⭐ Seguir linha';
+    btn.classList.remove('active');
+  } else {
+    addWatchLine(lineName, agencyId);
+    btn.textContent = '⭐ Seguindo';
+    btn.classList.add('active');
+  }
+});
+
+// Track button: follow this bus in real time
+document.getElementById('panel-track-btn').addEventListener('click', () => {
+  const btn = document.getElementById('panel-track-btn');
+  const vehId = btn.dataset.vehicleId;
+  if (!vehId) return;
+  
+  if (trackingVehicleId === vehId) {
+    trackingVehicleId = null;
+    btn.textContent = '🎯 Seguir este bus';
+    btn.classList.remove('active');
+  } else {
+    trackingVehicleId = vehId;
+    selectedVehicleId = vehId;
+    btn.textContent = '🎯 Seguindo...';
+    btn.classList.add('active');
+    document.getElementById('status-text').textContent = '🎯 A seguir bus em tempo real';
+  }
+});
+
+// Solo button: show only this vehicle
+document.getElementById('panel-solo-btn').addEventListener('click', () => {
+  const btn = document.getElementById('panel-solo-btn');
+  const vehId = btn.dataset.vehicleId;
+  if (!vehId) return;
+  
+  showOnlySelected = !showOnlySelected;
+  if (showOnlySelected) {
+    selectedVehicleId = vehId;
+    btn.textContent = '🔍 Mostrando só este';
+    btn.classList.add('active');
+    updateMap();
+  } else {
+    btn.textContent = '🔍 Mostrar só este';
+    btn.classList.remove('active');
+    updateMap();
+  }
+});
+
+// Watch list toggle
+document.getElementById('watchlist-toggle-btn').addEventListener('click', toggleWatchList);
+document.getElementById('watchlist-close').addEventListener('click', closeWatchList);
+document.getElementById('watchlist-backdrop').addEventListener('click', closeWatchList);
+
+// Watchlist editor
+document.getElementById('watchlist-edit-btn').addEventListener('click', toggleEditor);
+document.getElementById('editor-search-input').addEventListener('input', (e) => {
+  renderEditor(e.target.value);
+});
+
+// Panel
+document.querySelector('#info-panel .handle').addEventListener('click', closePanel);
+document.getElementById('panel-close').addEventListener('click', closePanel);
+
+// GPS button
+document.getElementById('gps-btn').addEventListener('click', startGPS);
+
+// Theme toggle
+document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
+
+// ─── START ───
+initMap();
+loadTheme();
+
+// Pre-cargar líneas por defecto si no hay watchlist guardada
+try {
+  const existing = localStorage.getItem(STORAGE_KEY);
+  if (!existing || JSON.parse(existing).length === 0) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_WATCH_LINES));
+  }
+} catch(e) {}
+renderWatchList();
+
+// Show learned stops for any existing watch list
+setTimeout(() => showLearnedStops(), 1000);
+
+fetchVehicles();
+setInterval(fetchVehicles, REFRESH_MS);
+
+setInterval(() => {
+  if (vehiclesData.length > 0) updateStatus();
+}, 1000);
+
+console.log('🚌 Lisboa Bus Tracker iniciado!');
+console.log(`🔄 Atualização a cada ${REFRESH_MS/1000}s`);
+console.log('⭐ Lista de seguimento pronta!');
+</script>
+</body>
+</html>
