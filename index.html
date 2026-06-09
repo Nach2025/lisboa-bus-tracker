@@ -156,15 +156,6 @@
     border-color: var(--gold);
     color: #000;
   }
-  #gps-btn.active {
-    background: #3b82f6 !important;
-    color: #fff !important;
-    border-color: #3b82f6 !important;
-  }
-  [data-theme="light"] #gps-btn.active {
-    background: #2563eb !important;
-    border-color: #2563eb !important;
-  }
   #map {
     flex: 1;
     width: 100%;
@@ -413,28 +404,6 @@
     .agency-btn { font-size: 10px; padding: 2px 8px; }
     #watchlist-panel { width: 100%; max-width: 100vw; }
   }
-  /* GPS pulse animation */
-  @keyframes gps-pulse {
-    0% { transform: scale(0.5); opacity: 1; }
-    100% { transform: scale(3); opacity: 0; }
-  }
-  .user-location-pulse {
-    position: absolute;
-    top: 0; left: 0;
-    width: 40px; height: 40px;
-    border-radius: 50%;
-    background: rgba(59, 130, 246, 0.3);
-    animation: gps-pulse 2s infinite;
-  }
-  .user-location-marker {
-    position: absolute;
-    top: 16px; left: 16px;
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: #3b82f6;
-    border: 2px solid #fff;
-    box-shadow: 0 0 4px rgba(0,0,0,0.3);
-  }
 </style>
 </head>
 <body>
@@ -448,7 +417,6 @@
     <button class="btn" id="clear-btn">✕</button>
   </div>
   <button class="btn btn-star" id="theme-toggle-btn" title="Alternar tema">☀️</button>
-  <button class="btn" id="gps-btn" title="Minha localização" style="font-size:18px;padding:4px 8px;">📍</button>
   <button class="btn btn-star" id="watchlist-toggle-btn" title="Lista de seguimento">⭐</button>
 </div>
 
@@ -2427,78 +2395,6 @@ function fitBounds() {
   }
 }
 
-// ─── GPS ───
-let userMarker = null;
-let gpsWatchId = null;
-let gpsActive = false;
-let userLocation = null;
-
-function toggleGPS() {
-  if (gpsActive) {
-    stopGPS();
-  } else {
-    startGPS();
-  }
-}
-
-function startGPS() {
-  if (!navigator.geolocation) {
-    document.getElementById('status-text').textContent = '⚠️ GPS não disponível';
-    return;
-  }
-  gpsActive = true;
-  document.getElementById('gps-btn').classList.add('active');
-  document.getElementById('status-text').textContent = '📍 A obter localização...';
-  gpsWatchId = navigator.geolocation.watchPosition(
-    onGPSPosition,
-    (err) => {
-      document.getElementById('status-text').textContent = `⚠️ GPS erro: ${err.message}`;
-      stopGPS();
-    },
-    { enableHighAccuracy: true, timeout: 5000, maximumAge: 3000 }
-  );
-}
-
-function stopGPS() {
-  gpsActive = false;
-  document.getElementById('gps-btn').classList.remove('active');
-  if (gpsWatchId !== null) {
-    navigator.geolocation.clearWatch(gpsWatchId);
-    gpsWatchId = null;
-  }
-  if (userMarker) {
-    map.removeLayer(userMarker);
-    userMarker = null;
-  }
-  userLocation = null;
-}
-
-function onGPSPosition(pos) {
-  const { latitude, longitude, accuracy } = pos.coords;
-  userLocation = { lat: latitude, lon: longitude, accuracy };
-  
-  if (userMarker) {
-    userMarker.setLatLng([latitude, longitude]);
-    userMarker.setTooltipContent(`📍 Tu (precisão: ${Math.round(accuracy)}m)`);
-  } else {
-    userMarker = L.marker([latitude, longitude], {
-      icon: L.divIcon({
-        className: '',
-        html: '<div class="user-location-pulse"></div><div class="user-location-marker"></div>',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20]
-      })
-    });
-    userMarker.bindTooltip(`📍 Tu (precisão: ${Math.round(accuracy)}m)`, { permanent: false, direction: 'top' });
-    userMarker.addTo(map);
-    map.setView([latitude, longitude], 15);
-  }
-  
-  document.getElementById('status-text').textContent =
-    `📍 ${latitude.toFixed(5)}, ${longitude.toFixed(5)} ±${Math.round(accuracy)}m`;
-  document.getElementById('gps-btn').classList.add('active');
-}
-
 function updateMap() {
   const filtered = filterVehicles();
 
@@ -2850,7 +2746,6 @@ document.getElementById('panel-watch-btn').addEventListener('click', () => {
 
 // Watch list toggle
 document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
-document.getElementById('gps-btn').addEventListener('click', toggleGPS);
 document.getElementById('watchlist-toggle-btn').addEventListener('click', toggleWatchList);
 document.getElementById('watchlist-close').addEventListener('click', closeWatchList);
 document.getElementById('watchlist-backdrop').addEventListener('click', closeWatchList);
