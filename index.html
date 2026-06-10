@@ -1016,7 +1016,7 @@ function getStatusText(speed) {
 
 // ─── GPS / UBICACIÓN ───
 function toggleGPS() {
-  if (gpsWatchId !== null) {
+    if (gpsWatchId !== null) {
     navigator.geolocation.clearWatch(gpsWatchId);
     gpsWatchId = null;
     if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
@@ -1036,12 +1036,13 @@ function toggleGPS() {
       if (!userMarker) {
         userAccuracy = L.circle([lat, lon], { radius: acc, className: 'user-accuracy' }).addTo(map);
         userMarker = L.marker([lat, lon], { icon: L.divIcon({ className: '', html: '<div class="user-location-icon"></div>', iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(map);
+        map.setView([lat, lon], 16);
       } else {
         userMarker.setLatLng([lat, lon]);
         userAccuracy.setLatLng([lat, lon]);
         userAccuracy.setRadius(acc);
+        map.panTo([lat, lon], { animate: true, duration: 0.3 });
       }
-      map.setView([lat, lon], 15);
       document.getElementById('status-text').textContent = `📍 GPS activo (±${Math.round(acc)}m)`;
       document.getElementById('gps-btn').classList.add('active');
     },
