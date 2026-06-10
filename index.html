@@ -1041,7 +1041,7 @@ function toggleGPS() {
         userAccuracy.setLatLng([lat, lon]);
         userAccuracy.setRadius(acc);
       }
-      if (isFirstLoad) { map.setView([lat, lon], 15); }
+      map.setView([lat, lon], 15);
       document.getElementById('status-text').textContent = `📍 GPS activo (±${Math.round(acc)}m)`;
       document.getElementById('gps-btn').classList.add('active');
     },
