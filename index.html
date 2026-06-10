@@ -1041,7 +1041,6 @@ function toggleGPS() {
         userMarker.setLatLng([lat, lon]);
         userAccuracy.setLatLng([lat, lon]);
         userAccuracy.setRadius(acc);
-        map.panTo([lat, lon], { animate: true, duration: 0.3 });
       }
       document.getElementById('status-text').textContent = `📍 GPS activo (±${Math.round(acc)}m)`;
       document.getElementById('gps-btn').classList.add('active');
@@ -1313,7 +1312,6 @@ document.getElementById('panel-close').addEventListener('click', closePanel);
 
 function showRouteLine(lineName) {
   if (!routeLayer || !stopsLayer) return;
-  routeLayer.clearLayers(); stopsLayer.clearLayers();
   const coords = ROUTE_SHAPES[lineName];
   if (coords && coords.length >= 2) {
     const colors = {'728': '#7c5cfc', '731': '#ff6b6b', '2713': '#00f5e0'};
@@ -1332,10 +1330,14 @@ function showRouteLine(lineName) {
 }
 function updateRouteDisplay() {
   if (!routeLayer || !stopsLayer) return;
-  if (searchLine) { showRouteLine(searchLine); return; }
-  if (activeRouteLine) { showRouteLine(activeRouteLine); return; }
-  if (watchMode) { const list = getWatchList(); if (list.length > 0) showRouteLine(list[0].line); return; }
   routeLayer.clearLayers(); stopsLayer.clearLayers();
+  if (searchLine) {
+    const lines = searchLine.split(/[\s,]+/).filter(t => t);
+    lines.forEach(l => showRouteLine(l));
+    return;
+  }
+  if (activeRouteLine) { showRouteLine(activeRouteLine); return; }
+  if (watchMode) { const list = getWatchList(); if (list.length > 0) list.forEach(item => showRouteLine(item.line)); return; }
 }
 function setLightTheme() {
   document.documentElement.setAttribute('data-theme', 'light');
@@ -1363,6 +1365,8 @@ function toggleTheme() {
 initMap();
 loadTheme();
 renderWatchList();
+searchLine = '728,731';
+document.getElementById('line-search').value = '728,731';
 fetchVehicles();
 setInterval(fetchVehicles, REFRESH_MS);
 setInterval(() => { if (vehiclesData.length > 0) updateStatus(); }, 1000);
